@@ -155,7 +155,7 @@ local function InitializeContextMenu(self, level)
         if EBB.FirstRun then
             EBB.FirstRun:ResetChoice()
             EBB.FirstRun:SetSessionDisabled(true)
-            EBB.Utils:Print("Disabled for this session")
+            EBB.Utils:PrintForced("Disabled for this session")
         end
     end
     UIDropDownMenu_AddButton(info, level)
@@ -232,6 +232,18 @@ local function InitializeContextMenu(self, level)
         if EBB_CharDB then
             EBB_CharDB.askNextLogin = not EBB_CharDB.askNextLogin
         end
+    end
+    UIDropDownMenu_AddButton(info, level)
+    
+    info = UIDropDownMenu_CreateInfo()
+    info.text = "Shush"
+    info.checked = EBB.Utils:IsShushed()
+    info.isNotRadio = true
+    info.keepShownOnClick = true
+    info.func = function()
+        local newState = not EBB.Utils:IsShushed()
+        EBB.Utils:SetShush(newState)
+        EBB.Utils:PrintForced(newState and "Chat messages muted" or "Chat messages enabled")
     end
     UIDropDownMenu_AddButton(info, level)
 end

@@ -8,10 +8,31 @@ EBB.Utils = {}
 local Utils = EBB.Utils
 
 --------------------------------------------------------------------------------
+-- Mute all chat output (Shush toggle)
+--------------------------------------------------------------------------------
+
+function Utils:IsShushed()
+    if not EBB_CharDB then return true end
+    if EBB_CharDB.shush == nil then return true end
+    return EBB_CharDB.shush
+end
+
+function Utils:SetShush(enabled)
+    if EBB_CharDB then
+        EBB_CharDB.shush = enabled
+    end
+end
+
+--------------------------------------------------------------------------------
 -- Chat Output
 --------------------------------------------------------------------------------
 
 function Utils:Print(message)
+    if self:IsShushed() then return end
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00CCFF[EBB]|r " .. tostring(message))
+end
+
+function Utils:PrintForced(message)
     DEFAULT_CHAT_FRAME:AddMessage("|cFF00CCFF[EBB]|r " .. tostring(message))
 end
 

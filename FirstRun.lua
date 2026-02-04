@@ -136,7 +136,7 @@ function FirstRun:OnYesClick()
         EBB.Core:OnAddonEnabled()
     end
     
-    Utils:Print("Enabled for this character")
+    Utils:PrintForced("Enabled")
 end
 
 function FirstRun:OnNoClick()
@@ -148,9 +148,9 @@ function FirstRun:OnNoClick()
     self:Hide()
     
     if remember then
-        Utils:Print("Disabled for this character (remembered)")
+        Utils:PrintForced("Disabled (remember)")
     else
-        Utils:Print("Disabled for this session")
+        Utils:PrintForced("Disabled")
     end
 end
 
