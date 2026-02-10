@@ -1,0 +1,39 @@
+## Interface: 30300
+## Title: Ebonhold Bar Builder
+## Author: supertuesday
+## Version: 0.1.1
+## SavedVariables: EBB_DB
+## SavedVariablesPerCharacter: EBB_CharDB
+
+# Utilities
+Utils.lua
+
+# Configuration
+Settings.lua
+
+# Core Systems
+ActionBar.lua
+ClassBars.lua
+Profile.lua
+Layout.lua
+Capture.lua
+Restore.lua
+Diagnose.lua
+Spec.lua
+SpellCache.lua
+
+# First Run
+uiFirstRun.lua
+FirstRun.lua
+
+# Main Entry
+Core.lua
+
+# Minimap
+MinimapButton.lua
+
+# UI
+uiSlotEditor.lua
+SlotEditor.lua
+uiExplorer.lua
+Explorer.lua
