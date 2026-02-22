@@ -15,6 +15,11 @@ local Restore = EBB.Restore
 local Spec = EBB.Spec
 local FirstRun = EBB.FirstRun
 local Diagnose = EBB.Diagnose
+local Keyframe = EBB.Keyframe
+local Clipboard = EBB.Clipboard
+local Template = EBB.Template
+local Timeline = EBB.Timeline
+local ImportExport = EBB.ImportExport
 
 --------------------------------------------------------------------------------
 -- State
@@ -108,14 +113,7 @@ end
 -- Level-Up Handling with Gap Fill
 --------------------------------------------------------------------------------
 
-HandleLevelUp = function(newLevel)
-    local oldLevel = GetLastKnownLevel() or (newLevel - 1)
-    SetLastKnownLevel(newLevel)
-    
-    if EBB.SpellCache then
-        EBB.SpellCache:ScanSpellbook(newLevel)
-    end
-    
+local function HandleLevelUpPerLevel(newLevel, oldLevel)
     if Layout:Has(newLevel) then
         Capture:Cancel()
         Restore:PerformWhenSafe(newLevel)
@@ -134,12 +132,62 @@ HandleLevelUp = function(newLevel)
         
         if gapsFilled > 0 then
             if gapsFilled == 1 then
-                Utils:Print(string.format("Level %d: Layout saved", newLevel))
+                Utils:PrintVerbose(string.format("Level %d: Layout saved", newLevel))
             else
-                Utils:Print(string.format("Levels %d-%d: %d layouts saved", 
+                Utils:PrintVerbose(string.format("Levels %d-%d: %d layouts saved", 
                     oldLevel + 1, newLevel, gapsFilled))
             end
         end
+    end
+end
+
+local function HandleLevelUpBreakpoint(newLevel, oldLevel)
+    -- If this level already has an explicit layout, restore it
+    if Layout:Has(newLevel) then
+        Capture:Cancel()
+        Restore:PerformWhenSafe(newLevel)
+        return
+    end
+    
+    -- Try to derive from nearest keyframe below
+    local nearestKF = Keyframe:GetNearestBelow(newLevel)
+    if nearestKF then
+        local kfLayout = Layout:Get(nearestKF)
+        if kfLayout then
+            local derived = Keyframe:DeriveLayout(kfLayout, newLevel)
+            if derived then
+                Capture:Cancel()
+                -- Don't save derived layouts — just restore from them
+                Restore:PerformFromLayout(derived, newLevel)
+                Utils:PrintVerbose(string.format(
+                    "Level %d: Restored from keyframe %d", newLevel, nearestKF))
+                return
+            end
+        end
+    end
+    
+    -- No keyframes exist yet — auto-capture this level as a new keyframe
+    local snapshot = Capture:GetSnapshot()
+    if snapshot then
+        Layout:Save(newLevel, snapshot)
+        Keyframe:Set(newLevel)
+        Utils:PrintVerbose(string.format(
+            "Level %d: Auto-saved as keyframe", newLevel))
+    end
+end
+
+HandleLevelUp = function(newLevel)
+    local oldLevel = GetLastKnownLevel() or (newLevel - 1)
+    SetLastKnownLevel(newLevel)
+    
+    if EBB.SpellCache then
+        EBB.SpellCache:ScanSpellbook(newLevel)
+    end
+    
+    if Settings:IsBreakpointMode() then
+        HandleLevelUpBreakpoint(newLevel, oldLevel)
+    else
+        HandleLevelUpPerLevel(newLevel, oldLevel)
     end
 end
 
@@ -242,9 +290,24 @@ function Core:InitializeAddon()
     
     if not specRequested then
         if not Layout:Has(currentLevel) then
-            C_Timer.After(Settings.RESTORE_DELAY, function()
-                Capture:Perform()
-            end)
+            if Settings:IsBreakpointMode() then
+                -- In breakpoint mode, check if we can derive from a keyframe
+                local nearestKF = Keyframe:GetNearestBelow(currentLevel)
+                if not nearestKF then
+                    -- No keyframes at all — capture as first keyframe
+                    C_Timer.After(Settings.RESTORE_DELAY, function()
+                        local ok = Capture:Perform()
+                        if ok then
+                            Keyframe:Set(currentLevel)
+                        end
+                    end)
+                end
+                -- If nearestKF exists, derived layouts will be used on demand
+            else
+                C_Timer.After(Settings.RESTORE_DELAY, function()
+                    Capture:Perform()
+                end)
+            end
         end
         Utils:Print(string.format("v%s loaded", Settings.VERSION))
     end
@@ -284,6 +347,18 @@ local function OnActionBarSlotChanged(slot)
     if Spec:IsSwitchPending() then return end
     if pendingLevelUp then return end
     
+    -- In breakpoint mode, only auto-capture if current level is a keyframe
+    -- or if no keyframes exist yet (first capture creates one)
+    if Settings:IsBreakpointMode() then
+        local currentLevel = Utils:GetPlayerLevel()
+        local hasAnyKF = Keyframe:GetCount() > 0
+        local isKF = Keyframe:IsKeyframe(currentLevel)
+        
+        if hasAnyKF and not isKF then
+            return  -- don't auto-save intermediate levels in breakpoint mode
+        end
+    end
+    
     Capture:Schedule()
 end
 
@@ -310,6 +385,15 @@ local function OnLearnedSpellInTab()
     
     if not Restore:IsInProgress() and not Restore:IsRecentlyFinished()
        and not Restore:HasPendingCombatRestore() and not Spec:IsSwitchPending() then
+        -- In breakpoint mode, only auto-capture at keyframe levels
+        if Settings:IsBreakpointMode() then
+            local currentLevel = Utils:GetPlayerLevel()
+            local hasAnyKF = Keyframe:GetCount() > 0
+            local isKF = Keyframe:IsKeyframe(currentLevel)
+            if hasAnyKF and not isKF then
+                return
+            end
+        end
         Capture:Schedule()
     end
 end
@@ -324,6 +408,17 @@ local function OnBonusBarUpdate()
     if Spec:IsSwitchPending() then return end
     
     DebugPrint("UPDATE_BONUS_ACTIONBAR, stance:", EBB.ActionBar:GetStanceIndex())
+    
+    -- In breakpoint mode, only auto-capture at keyframe levels
+    if Settings:IsBreakpointMode() then
+        local currentLevel = Utils:GetPlayerLevel()
+        local hasAnyKF = Keyframe:GetCount() > 0
+        local isKF = Keyframe:IsKeyframe(currentLevel)
+        if hasAnyKF and not isKF then
+            return
+        end
+    end
+    
     Capture:Schedule()
 end
 
@@ -341,6 +436,8 @@ frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
 frame:RegisterEvent("SPELLS_CHANGED")
 frame:RegisterEvent("LEARNED_SPELL_IN_TAB")
 frame:RegisterEvent("UPDATE_BONUS_ACTIONBAR")
+frame:RegisterEvent("TRAINER_SHOW")
+frame:RegisterEvent("TRAINER_UPDATE")
 
 frame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
@@ -359,6 +456,14 @@ frame:SetScript("OnEvent", function(self, event, ...)
         OnLearnedSpellInTab()
     elseif event == "UPDATE_BONUS_ACTIONBAR" then
         OnBonusBarUpdate()
+    elseif event == "TRAINER_SHOW" then
+        if EBB.SpellCache then
+            EBB.SpellCache:ScanTrainer()
+        end
+    elseif event == "TRAINER_UPDATE" then
+        if EBB.SpellCache then
+            EBB.SpellCache:ScanTrainer()
+        end
     end
 end)
 
@@ -417,6 +522,7 @@ SlashCmdList["EBB"] = function(msg)
         local layout, source = Layout:Get(level)
         
         Utils:Print(string.format("Spec: %s (#%d)", specName, specIndex))
+        Utils:Print(string.format("Recording: %s", Settings:GetRecordingModeLabel()))
         Utils:Print(string.format("Enabled slots: %d/%d", 
             Profile:GetEnabledSlotCount(), Settings.TOTAL_SLOTS))
         
@@ -458,6 +564,32 @@ SlashCmdList["EBB"] = function(msg)
     elseif msg == "clear" then
         Layout:ClearAll()
         Utils:PrintSuccess("All layouts cleared for current spec")
+        
+    elseif msg == "mode" then
+        if Settings:IsPerLevelMode() then
+            Settings:SetRecordingMode(Settings.RECORD_BREAKPOINT)
+        else
+            Settings:SetRecordingMode(Settings.RECORD_PER_LEVEL)
+        end
+        Utils:Print("Recording mode: " .. Settings:GetRecordingModeLabel())
+        if EBB.Explorer and EBB.Explorer:IsVisible() then
+            EBB.Explorer:Refresh()
+        end
+        
+    elseif msg:find("^mode%s+") then
+        local arg = msg:match("^mode%s+(.+)")
+        if arg == "perlevel" or arg == "per_level" or arg == "level" then
+            Settings:SetRecordingMode(Settings.RECORD_PER_LEVEL)
+        elseif arg == "breakpoint" or arg == "breakpoints" or arg == "kf" then
+            Settings:SetRecordingMode(Settings.RECORD_BREAKPOINT)
+        else
+            Utils:Print("Usage: /ebb mode [perlevel|breakpoint]")
+            return
+        end
+        Utils:Print("Recording mode: " .. Settings:GetRecordingModeLabel())
+        if EBB.Explorer and EBB.Explorer:IsVisible() then
+            EBB.Explorer:Refresh()
+        end
         
     elseif msg == "resetcache" then
         if EBB.SpellCache then
@@ -506,12 +638,54 @@ SlashCmdList["EBB"] = function(msg)
             Utils:PrintError("Explorer UI not loaded")
         end
         
+    elseif msg == "minimap" then
+        local hidden = Settings:ToggleMinimapButton()
+        if hidden then
+            if EBB.MinimapButton then
+                EBB.MinimapButton:Hide()
+            end
+            Utils:Print("Minimap button hidden. Use '/ebb minimap' to show it again.")
+        else
+            if EBB.MinimapButton then
+                EBB.MinimapButton:Show()
+            end
+            Utils:Print("Minimap button shown.")
+        end
+        
+    elseif msg:find("^label%s+") then
+        local args = msg:match("^label%s+(.+)")
+        local barNum, newLabel = args:match("^(%d+)%s+(.+)")
+        barNum = tonumber(barNum)
+        if barNum and newLabel and barNum >= 1 and barNum <= Settings.TOTAL_BARS then
+            newLabel = strtrim(newLabel)
+            Settings:SetBarLabel(barNum, newLabel)
+            Utils:Print(string.format("Bar %d renamed to: %s", barNum, newLabel))
+            if EBB.Explorer and EBB.Explorer:IsVisible() then
+                EBB.Explorer:BuildMapping()
+                EBB.Explorer:RefreshBarLabels()
+            end
+        else
+            Utils:Print("Usage: /ebb label <1-" .. Settings.TOTAL_BARS .. "> <name>")
+        end
+        
+    elseif msg == "resetlabels" then
+        Settings:ResetBarLabels()
+        Utils:PrintSuccess("Bar labels reset to defaults")
+        if EBB.Explorer and EBB.Explorer:IsVisible() then
+            EBB.Explorer:BuildMapping()
+            EBB.Explorer:RefreshBarLabels()
+        end
+        
     else
         Utils:Print("Commands:")
         Utils:Print("  /ebb ui - Open configuration panel")
         Utils:Print("  /ebb status - Show current status")
         Utils:Print("  /ebb save - Save current level")
         Utils:Print("  /ebb restore - Restore current level")
+        Utils:Print("  /ebb mode - Toggle recording mode (per-level / breakpoints)")
+        Utils:Print("  /ebb minimap - Toggle minimap button visibility")
+        Utils:Print("  /ebb label <bar#> <name> - Rename a bar label")
+        Utils:Print("  /ebb resetlabels - Reset all bar labels to defaults")
         Utils:Print("  /ebb clear - Clear all layouts in current spec")
         Utils:Print("  /ebb resetcache - Reset spell level cache and rescan")
         Utils:Print("  /ebb diagnose [bar|all] - Inspect live slot data")

@@ -157,6 +157,23 @@ function UI:CreatePickerFrame()
     addButton:Disable()
     frame.AddButton = addButton
 
+    -- Highest rank checkbox, inline with Add button on the left
+    local highestRankCheck = CreateFrame("CheckButton", "EBBPickerHighestRank",
+                                          frame, "UICheckButtonTemplate")
+    highestRankCheck:SetWidth(20)
+    highestRankCheck:SetHeight(20)
+    highestRankCheck:SetChecked(false)
+    highestRankCheck:SetPoint("LEFT", LAYOUT.FRAME_PADDING + 2, 0)
+    highestRankCheck:SetPoint("BOTTOM", addButton, "BOTTOM", 0, 0)
+
+    local checkLabel = highestRankCheck:CreateFontString(nil, "OVERLAY",
+                                                          "GameFontNormalSmall")
+    checkLabel:SetPoint("LEFT", highestRankCheck, "RIGHT", 0, 1)
+    checkLabel:SetText("Highest rank only")
+    checkLabel:SetTextColor(0.9, 0.9, 0.9)
+
+    frame.HighestRankCheck = highestRankCheck
+
     return frame
 end
 

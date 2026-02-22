@@ -12,7 +12,7 @@ local Settings = EBB.Settings
 -- Constants
 --------------------------------------------------------------------------------
 
-Settings.VERSION = "0.1.1"
+Settings.VERSION = "0.2.0"
 Settings.MAX_LEVEL = 80
 
 Settings.DEBOUNCE_TIME = 1.5
@@ -22,11 +22,20 @@ Settings.TOTAL_SLOTS = 120
 Settings.SLOTS_PER_BAR = 12
 Settings.TOTAL_BARS = 10
 
+Settings.MAX_UNDO_DEPTH = 20
+Settings.MAX_TEMPLATES = 20
+
+-- Recording modes
+Settings.RECORD_PER_LEVEL = "per_level"
+Settings.RECORD_BREAKPOINT = "breakpoint"
+
 --------------------------------------------------------------------------------
 -- Default Settings
 --------------------------------------------------------------------------------
 
 local DEFAULT_SETTINGS = {
+    recordingMode = "per_level",
+    hideMinimapButton = false,
     barLabels = {
         [1] = "Action Bar 1",
         [2] = "Action Bar 2",
@@ -113,4 +122,53 @@ end
 
 function Settings:ResetBarLabels()
     self:Set("barLabels", EBB.Utils:DeepCopy(DEFAULT_SETTINGS.barLabels))
+end
+
+--------------------------------------------------------------------------------
+-- Recording Mode
+--------------------------------------------------------------------------------
+
+function Settings:GetRecordingMode()
+    return self:Get("recordingMode") or self.RECORD_PER_LEVEL
+end
+
+function Settings:SetRecordingMode(mode)
+    if mode ~= self.RECORD_PER_LEVEL and mode ~= self.RECORD_BREAKPOINT then
+        return false
+    end
+    self:Set("recordingMode", mode)
+    return true
+end
+
+function Settings:IsPerLevelMode()
+    return self:GetRecordingMode() == self.RECORD_PER_LEVEL
+end
+
+function Settings:IsBreakpointMode()
+    return self:GetRecordingMode() == self.RECORD_BREAKPOINT
+end
+
+function Settings:GetRecordingModeLabel()
+    if self:IsBreakpointMode() then
+        return "Breakpoints"
+    end
+    return "Per-Level"
+end
+
+--------------------------------------------------------------------------------
+-- Minimap Button
+--------------------------------------------------------------------------------
+
+function Settings:IsMinimapButtonHidden()
+    return self:Get("hideMinimapButton") == true
+end
+
+function Settings:SetMinimapButtonHidden(hidden)
+    self:Set("hideMinimapButton", hidden == true)
+end
+
+function Settings:ToggleMinimapButton()
+    local hidden = not self:IsMinimapButtonHidden()
+    self:SetMinimapButtonHidden(hidden)
+    return hidden
 end

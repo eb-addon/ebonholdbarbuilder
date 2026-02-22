@@ -136,6 +136,11 @@ function MinimapButton:Create()
     
     UpdatePosition(GetSavedAngle())
     
+    -- Respect user's hide setting
+    if EBB.Settings and EBB.Settings:IsMinimapButtonHidden() then
+        button:Hide()
+    end
+    
     return button
 end
 
@@ -148,8 +153,49 @@ local contextMenu = nil
 local function InitializeContextMenu(self, level)
     if not level then return end
     
-    local info = UIDropDownMenu_CreateInfo()
+    local Settings = EBB.Settings
     
+    -- Recording mode header
+    local info = UIDropDownMenu_CreateInfo()
+    info.text = "Recording Mode:"
+    info.isTitle = true
+    info.notCheckable = true
+    UIDropDownMenu_AddButton(info, level)
+    
+    info = UIDropDownMenu_CreateInfo()
+    info.text = "    Per-Level"
+    info.checked = Settings:IsPerLevelMode()
+    info.isNotRadio = false
+    info.func = function()
+        Settings:SetRecordingMode(Settings.RECORD_PER_LEVEL)
+        EBB.Utils:Print("Recording mode: Per-Level")
+        if EBB.Explorer and EBB.Explorer:IsVisible() then
+            EBB.Explorer:Refresh()
+        end
+    end
+    UIDropDownMenu_AddButton(info, level)
+    
+    info = UIDropDownMenu_CreateInfo()
+    info.text = "    Breakpoints"
+    info.checked = Settings:IsBreakpointMode()
+    info.isNotRadio = false
+    info.func = function()
+        Settings:SetRecordingMode(Settings.RECORD_BREAKPOINT)
+        EBB.Utils:Print("Recording mode: Breakpoints")
+        if EBB.Explorer and EBB.Explorer:IsVisible() then
+            EBB.Explorer:Refresh()
+        end
+    end
+    UIDropDownMenu_AddButton(info, level)
+    
+    -- Separator
+    info = UIDropDownMenu_CreateInfo()
+    info.disabled = true
+    info.notCheckable = true
+    UIDropDownMenu_AddButton(info, level)
+    
+    -- Disable
+    info = UIDropDownMenu_CreateInfo()
     info.text = "Disable EBB"
     info.notCheckable = true
     info.colorCode = "|cFFFF4444"
@@ -158,6 +204,19 @@ local function InitializeContextMenu(self, level)
             EBB.FirstRun:ResetChoice()
             EBB.FirstRun:SetSessionDisabled(true)
             EBB.Utils:Print("Disabled for this session")
+        end
+    end
+    UIDropDownMenu_AddButton(info, level)
+
+    -- Hide minimap button
+    info = UIDropDownMenu_CreateInfo()
+    info.text = "Hide Minimap Button"
+    info.notCheckable = true
+    info.func = function()
+        if EBB.Settings then
+            EBB.Settings:SetMinimapButtonHidden(true)
+            MinimapButton:Hide()
+            EBB.Utils:Print("Minimap button hidden. Use '/ebb minimap' to show it again.")
         end
     end
     UIDropDownMenu_AddButton(info, level)

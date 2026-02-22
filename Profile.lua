@@ -35,6 +35,8 @@ local function CreateDefaultSpec()
     return {
         enabledSlots = enabledSlots,
         layouts = {},
+        keyframes = {},
+        templates = {},
     }
 end
 
@@ -46,6 +48,13 @@ function Profile:Initialize()
     for specIndex = 1, NUM_SPECS do
         if not EBB_CharDB.specs[specIndex] then
             EBB_CharDB.specs[specIndex] = CreateDefaultSpec()
+        end
+        -- Ensure new fields exist on existing specs
+        if not EBB_CharDB.specs[specIndex].keyframes then
+            EBB_CharDB.specs[specIndex].keyframes = {}
+        end
+        if not EBB_CharDB.specs[specIndex].templates then
+            EBB_CharDB.specs[specIndex].templates = {}
         end
     end
     

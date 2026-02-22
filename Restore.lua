@@ -402,6 +402,19 @@ function Restore:Perform(level)
         return false
     end
     
+    return self:PerformFromLayout(layout, level)
+end
+
+--- Restore from a given layout object directly (used by breakpoint mode
+--- to restore derived layouts without saving them to storage).
+function Restore:PerformFromLayout(layout, level)
+    level = level or Utils:GetPlayerLevel()
+    
+    if not layout then
+        Utils:Print(string.format("Level %d: No layout provided", level))
+        return false
+    end
+    
     isRestoring = true
     
     local ok, restored, failures = pcall(function()

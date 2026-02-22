@@ -36,6 +36,83 @@ local openCategory = nil
 local openSubGroups = {}
 local categories = {}
 local categoryGroupOrder = {}
+local highestRankOnly = false
+
+--------------------------------------------------------------------------------
+-- Highest Rank Toggle
+--------------------------------------------------------------------------------
+
+function SlotEditor:IsHighestRankOnly()
+    return highestRankOnly
+end
+
+function SlotEditor:SetHighestRankOnly(enabled)
+    highestRankOnly = enabled
+    selectedItem = nil
+    local frame = UI.PickerFrame
+    if frame then
+        frame.AddButton:Disable()
+        frame.StatusText:SetText("")
+    end
+    self:PopulateCategories()
+    self:RefreshList()
+end
+
+local function ParseRankNumber(rank)
+    if not rank or rank == "" then return 0 end
+    local num = rank:match("Rank (%d+)")
+    return tonumber(num) or 0
+end
+
+local function FilterHighestRanks(items, level)
+    local byName = {}
+    local order = {}
+    for _, item in ipairs(items) do
+        if not byName[item.name] then
+            byName[item.name] = {}
+            table.insert(order, item.name)
+        end
+        table.insert(byName[item.name], item)
+    end
+
+    local result = {}
+    for _, name in ipairs(order) do
+        local ranks = byName[name]
+        if #ranks <= 1 then
+            result[#result + 1] = ranks[1]
+        else
+            local bestAvailable = nil
+            local bestUnavailable = nil
+            for _, item in ipairs(ranks) do
+                local rn = ParseRankNumber(item.rank)
+                if item.availability == "available" then
+                    if not bestAvailable or rn > ParseRankNumber(bestAvailable.rank) then
+                        bestAvailable = item
+                    end
+                else
+                    if not bestUnavailable or rn > ParseRankNumber(bestUnavailable.rank) then
+                        bestUnavailable = item
+                    end
+                end
+            end
+            if bestAvailable then
+                result[#result + 1] = bestAvailable
+            end
+            if bestUnavailable then
+                local availRank = bestAvailable and ParseRankNumber(bestAvailable.rank) or -1
+                if ParseRankNumber(bestUnavailable.rank) > availRank then
+                    result[#result + 1] = bestUnavailable
+                end
+            end
+            if not bestAvailable and not bestUnavailable then
+                for _, item in ipairs(ranks) do
+                    result[#result + 1] = item
+                end
+            end
+        end
+    end
+    return result
+end
 
 --------------------------------------------------------------------------------
 -- Show / Hide
@@ -57,6 +134,9 @@ function SlotEditor:Open(dataSlot, level, callback)
     frame.FilterBox:SetText("")
     frame.AddButton:Disable()
     frame.StatusText:SetText("")
+    if frame.HighestRankCheck then
+        frame.HighestRankCheck:SetChecked(highestRankOnly)
+    end
     frame:Show()
 
     self:RefreshList()
@@ -109,6 +189,12 @@ function SlotEditor:Initialize()
     frame.CloseButton:SetScript("OnClick", function()
         SlotEditor:Close()
     end)
+
+    if frame.HighestRankCheck then
+        frame.HighestRankCheck:SetScript("OnClick", function(self)
+            SlotEditor:SetHighestRankOnly(self:GetChecked())
+        end)
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -191,6 +277,9 @@ function SlotEditor:GetSpellItems()
 
         categoryGroupOrder["Spells"] = groupOrder
         table.sort(items, function(a, b) return a.displayName < b.displayName end)
+        if highestRankOnly then
+            items = FilterHighestRanks(items, targetLevel)
+        end
         return items
     end
 
@@ -233,6 +322,10 @@ function SlotEditor:GetSpellItems()
 
                     if cachedAvail == false then
                         local learnLevel = SpellCache:GetSpellLevel(spellName, rank)
+                        local source = SpellCache:GetSpellSource(spellName, rank)
+                        local levelPrefix = (source == "trainer")
+                            and "Learned at level "
+                            or "First seen at level "
                         if not notYetLearnedTabs[tabName] then
                             notYetLearnedTabs[tabName] = true
                             table.insert(notYetLearnedTabOrder, tabName)
@@ -245,7 +338,7 @@ function SlotEditor:GetSpellItems()
                             icon = icon,
                             spellbookIndex = spellIndex,
                             availability = "unavailable",
-                            availabilityText = "First seen at level "
+                            availabilityText = levelPrefix
                                 .. (learnLevel or "?"),
                             group = tabName .. " (Not Yet Learned)",
                         })
@@ -301,6 +394,9 @@ function SlotEditor:GetSpellItems()
                         group = tabName,
                     })
                 else
+                    local levelPrefix = (cached.source == "trainer")
+                        and "Learned at level "
+                        or "First seen at level "
                     if not notYetLearnedTabs[tabName] then
                         notYetLearnedTabs[tabName] = true
                         table.insert(notYetLearnedTabOrder, tabName)
@@ -313,7 +409,7 @@ function SlotEditor:GetSpellItems()
                         icon = icon,
                         spellbookIndex = nil,
                         availability = "unavailable",
-                        availabilityText = "First seen at level "
+                        availabilityText = levelPrefix
                             .. cached.learnLevel,
                         group = tabName .. " (Not Yet Learned)",
                     })
@@ -331,6 +427,9 @@ function SlotEditor:GetSpellItems()
 
     categoryGroupOrder["Spells"] = groupOrder
     table.sort(items, function(a, b) return a.displayName < b.displayName end)
+    if highestRankOnly then
+        items = FilterHighestRanks(items, targetLevel)
+    end
     return items
 end
 

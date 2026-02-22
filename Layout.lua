@@ -170,3 +170,30 @@ end
 function Layout:ClearSessionData()
     sessionLayouts = {}
 end
+
+--------------------------------------------------------------------------------
+-- Keyframe-Aware Queries
+--------------------------------------------------------------------------------
+
+function Layout:GetEffective(level, specIndex)
+    local Keyframe = EBB.Keyframe
+    
+    if Keyframe and Keyframe:GetCount(specIndex) > 0 then
+        return Keyframe:GetEffectiveLayout(level, specIndex)
+    end
+    
+    return self:Get(level, specIndex)
+end
+
+function Layout:GetLevelsInRange(fromLevel, toLevel, specIndex)
+    local levels = self:GetSavedLevels(specIndex)
+    local result = {}
+    
+    for _, level in ipairs(levels) do
+        if level >= fromLevel and level <= toLevel then
+            table.insert(result, level)
+        end
+    end
+    
+    return result
+end
