@@ -1,7 +1,7 @@
 ## Interface: 30300
 ## Title: Ebonhold Bar Builder
 ## Author: supertuesday
-## Version: 0.2.0
+## Version: 0.2.1
 ## SavedVariables: EBB_DB
 ## SavedVariablesPerCharacter: EBB_CharDB
 

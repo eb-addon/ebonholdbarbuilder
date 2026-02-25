@@ -12,7 +12,7 @@ local Settings = EBB.Settings
 -- Constants
 --------------------------------------------------------------------------------
 
-Settings.VERSION = "0.2.0"
+Settings.VERSION = "0.2.1"
 Settings.MAX_LEVEL = 80
 
 Settings.DEBOUNCE_TIME = 1.5
