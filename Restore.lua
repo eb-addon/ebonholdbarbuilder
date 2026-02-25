@@ -395,7 +395,12 @@ end
 function Restore:Perform(level)
     level = level or Utils:GetPlayerLevel()
     
-    local layout, source = Layout:Get(level)
+    local layout, source
+    if Settings:IsBreakpointMode() then
+        layout, source = Layout:GetEffective(level)
+    else
+        layout, source = Layout:Get(level)
+    end
     
     if not layout then
         Utils:Print(string.format("Level %d: No saved layout found", level))
@@ -405,8 +410,6 @@ function Restore:Perform(level)
     return self:PerformFromLayout(layout, level)
 end
 
---- Restore from a given layout object directly (used by breakpoint mode
---- to restore derived layouts without saving them to storage).
 function Restore:PerformFromLayout(layout, level)
     level = level or Utils:GetPlayerLevel()
     

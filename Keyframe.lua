@@ -1,8 +1,5 @@
 --[[----------------------------------------------------------------------------
     Keyframe (Breakpoint) management system.
-    Keyframes are milestone levels where layouts are manually defined.
-    Intermediate levels derive their layouts from the nearest keyframe below,
-    with spell ranks auto-adjusted via SpellCache.
 ------------------------------------------------------------------------------]]
 
 local ADDON_NAME, EBB = ...
@@ -184,13 +181,19 @@ function Keyframe:AdjustSpellRank(slotInfo, targetLevel)
     end
 
     local ranks = {}
+    local hasTrainerData = false
     for rank, entry in pairs(cache[spellName]) do
         local learnLevel = SpellCache:ReadEntryLevel(entry)
         if learnLevel then
+            local source = SpellCache:ReadEntrySource(entry)
+            if source == "trainer" then
+                hasTrainerData = true
+            end
             table.insert(ranks, {
                 rank = rank,
                 learnLevel = learnLevel,
                 icon = SpellCache:ReadEntryIcon(entry),
+                source = source,
             })
         end
     end
@@ -208,11 +211,15 @@ function Keyframe:AdjustSpellRank(slotInfo, targetLevel)
     end
 
     if not bestRank then
-        return {
-            type = "empty",
-            slot = slotInfo.slot,
-            _unavailableSpell = spellName,
-        }
+        if hasTrainerData then
+            return {
+                type = "empty",
+                slot = slotInfo.slot,
+                _unavailableSpell = spellName,
+            }
+        else
+            return Utils:DeepCopy(slotInfo)
+        end
     end
 
     local adjusted = Utils:DeepCopy(slotInfo)
