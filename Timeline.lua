@@ -281,7 +281,7 @@ function Timeline:FormatSummary(diff)
     for _, change in ipairs(diff.replacedSlots) do
         table.insert(lines, {
             text = string.format("Slot %d: %s -> %s",
-                change.slot, change.from.name, change.to.name),
+                change.slot, change.from and change.from.name or "?", change.to and change.to.name or "?"),
             color = { 1, 0.8, 0.3 },
             type = "replaced",
         })
